@@ -1,0 +1,82 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: board
+      POSTGRES_USER: board
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-board-local-only}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U board -d board"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  web:
+    build: .
+    image: ${BOARD_IMAGE:-tanstack-start-study:local}
+    environment:
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://board:board-local-only@db:5432/board}
+      UPLOAD_DIR: /app/data/uploads
+      LOG_REQUESTS: "1"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_TEST_RECIPIENT: ${MAIL_TEST_RECIPIENT:-}
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${BOARD_PORT:-3000}:3000"
+    volumes:
+      - uploads:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    image: ${BOARD_IMAGE:-tanstack-start-study:local}
+    command: ["node", "--import", "tsx", "scripts/worker.ts"]
+    environment:
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql://board:board-local-only@db:5432/board}
+      UPLOAD_DIR: /app/data/uploads
+    volumes:
+      - uploads:/app/data
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  maria:
+    image: mariadb:11.4
+    profiles: ["db-labs"]
+    environment:
+      MARIADB_ROOT_PASSWORD: lab-root-only
+      MARIADB_DATABASE: board
+      MARIADB_USER: board
+      MARIADB_PASSWORD: board-local-only
+    ports:
+      - "127.0.0.1:13309:3306"
+
+  mongo:
+    image: mongo:8
+    profiles: ["db-labs"]
+    ports:
+      - "127.0.0.1:27019:27017"
+
+volumes:
+  postgres-data:
+  uploads:

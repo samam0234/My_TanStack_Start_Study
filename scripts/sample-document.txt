@@ -1,0 +1,3 @@
+TanStack Start 게시판은 TanStack Router로 URL을 타입 검사한다.
+SQLite는 개발용 파일 데이터베이스이다. PostgreSQL은 Compose 운영 실습에 사용한다.
+문서 처리 작업은 웹 요청과 분리된 worker가 맡는다.
